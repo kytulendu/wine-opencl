@@ -1,4 +1,4 @@
-This wine patch patch to expose OpenCL 2.1 on Linux side to Windows program runing on wine.
+This wine patch patch to expose OpenCL 1.2 on Linux side to Windows program runing on wine.
 
 The patch will expose **all** extensions list that Linux side OpenCL devices support,
 even if it not support by wine's OpenCL pass-though. So it might cause problems
