@@ -1,4 +1,4 @@
-From 0f583b8a1c5a0462489730a264f5c08c112944db Mon Sep 17 00:00:00 2001
+From 4bfc5463f02a9e50e16ef2c990afafcc3e2df45d Mon Sep 17 00:00:00 2001
 From: Nakarin Khankham <garuda2550@gmail.com>
 Date: Sat, 9 Mar 2019 21:53:49 +0700
 Subject: [PATCH 3/5] opencl: Add OpenCL 1.1 implementation.
@@ -8,12 +8,12 @@ Signed-off-by: Nakarin Khankham <garuda2550@gmail.com>
 ---
 v2: Remove WINAPI from function pointer prototype.
 ---
- dlls/opencl/opencl.c    | 192 ++++++++++++++++++++++++++++++++++++++++
+ dlls/opencl/opencl.c    | 194 ++++++++++++++++++++++++++++++++++++++++
  dlls/opencl/opencl.spec |  10 +++
- 2 files changed, 202 insertions(+)
+ 2 files changed, 204 insertions(+)
 
 diff --git a/dlls/opencl/opencl.c b/dlls/opencl/opencl.c
-index 221cf1a04c..2d2f8d4086 100644
+index 221cf1a04c..41fc71b2c9 100644
 --- a/dlls/opencl/opencl.c
 +++ b/dlls/opencl/opencl.c
 @@ -196,6 +196,28 @@ static cl_int (*pclEnqueueBarrier)(cl_command_queue command_queue);
@@ -85,7 +85,7 @@ index 221cf1a04c..2d2f8d4086 100644
  cl_mem WINAPI wine_clCreateImage2D(cl_context context, cl_mem_flags flags, cl_image_format * image_format,
                                     size_t image_width, size_t image_height, size_t image_row_pitch, void * host_ptr, cl_int * errcode_ret)
  {
-@@ -725,6 +773,45 @@ cl_int WINAPI wine_clGetImageInfo(cl_mem image, cl_image_info param_name, size_t
+@@ -725,6 +773,46 @@ cl_int WINAPI wine_clGetImageInfo(cl_mem image, cl_image_info param_name, size_t
      return ret;
  }
  
@@ -97,10 +97,11 @@ index 221cf1a04c..2d2f8d4086 100644
 +
 +static void mem_fn_notify(cl_mem memobj, void* user_data)
 +{
-+    MEM_CALLBACK *pcb;
++    MEM_CALLBACK *mcb;
 +    FIXME("(%p, %p)\n", memobj, user_data);
-+    pcb = (MEM_CALLBACK *) user_data;
-+    if(pcb->pfn_notify) pcb->pfn_notify(memobj, pcb->user_data);
++    mcb = (MEM_CALLBACK *) user_data;
++    mcb->pfn_notify(memobj, mcb->user_data);
++    HeapFree(GetProcessHeap(), 0, mcb);
 +    FIXME("Callback COMPLETED\n");
 +}
 +
@@ -113,10 +114,10 @@ index 221cf1a04c..2d2f8d4086 100644
 +    if(pfn_notify)
 +    {
 +        /* When pfn_notify is provided, clSetMemObjectDestructorCallback is asynchronous */
-+        MEM_CALLBACK *pcb;
-+        pcb = HeapAlloc(GetProcessHeap(), 0, sizeof(MEM_CALLBACK));
-+        pcb->pfn_notify = pfn_notify;
-+        pcb->user_data = user_data;
++        MEM_CALLBACK *mcb;
++        mcb = HeapAlloc(GetProcessHeap(), 0, sizeof(MEM_CALLBACK));
++        mcb->pfn_notify = pfn_notify;
++        mcb->user_data = user_data;
 +        ret = pclSetMemObjectDestructorCallback(memobj, mem_fn_notify, user_data);
 +    }
 +    else
@@ -131,7 +132,7 @@ index 221cf1a04c..2d2f8d4086 100644
  
  /*---------------------------------------------------------------*/
  /* Sampler APIs  */
-@@ -1009,6 +1096,68 @@ cl_int WINAPI wine_clReleaseEvent(cl_event event)
+@@ -1009,6 +1097,69 @@ cl_int WINAPI wine_clReleaseEvent(cl_event event)
      return ret;
  }
  
@@ -159,7 +160,8 @@ index 221cf1a04c..2d2f8d4086 100644
 +    EVENT_CALLBACK *ecb;
 +    FIXME("(%p, %d, %p)\n", event, num, user_data);
 +    ecb = (EVENT_CALLBACK *) user_data;
-+    if(ecb->pfn_notify) ecb->pfn_notify(event, num, ecb->user_data);
++    ecb->pfn_notify(event, num, ecb->user_data);
++    HeapFree(GetProcessHeap(), 0, ecb);
 +    FIXME("Callback COMPLETED\n");
 +}
 +
@@ -200,7 +202,7 @@ index 221cf1a04c..2d2f8d4086 100644
  
  /*---------------------------------------------------------------*/
  /* Profiling APIs  */
-@@ -1062,6 +1211,21 @@ cl_int WINAPI wine_clEnqueueReadBuffer(cl_command_queue command_queue, cl_mem bu
+@@ -1062,6 +1213,21 @@ cl_int WINAPI wine_clEnqueueReadBuffer(cl_command_queue command_queue, cl_mem bu
      return ret;
  }
  
@@ -222,7 +224,7 @@ index 221cf1a04c..2d2f8d4086 100644
  cl_int WINAPI wine_clEnqueueWriteBuffer(cl_command_queue command_queue, cl_mem buffer, cl_bool blocking_write,
                                          size_t offset, size_t cb, const void * ptr,
                                          cl_uint num_events_in_wait_list, const cl_event * event_wait_list, cl_event * event)
-@@ -1073,6 +1237,21 @@ cl_int WINAPI wine_clEnqueueWriteBuffer(cl_command_queue command_queue, cl_mem b
+@@ -1073,6 +1239,21 @@ cl_int WINAPI wine_clEnqueueWriteBuffer(cl_command_queue command_queue, cl_mem b
      return ret;
  }
  
@@ -244,7 +246,7 @@ index 221cf1a04c..2d2f8d4086 100644
  cl_int WINAPI wine_clEnqueueCopyBuffer(cl_command_queue command_queue, cl_mem src_buffer, cl_mem dst_buffer,
                                         size_t src_offset, size_t dst_offset, size_t cb,
                                         cl_uint num_events_in_wait_list, const cl_event * event_wait_list, cl_event * event)
-@@ -1084,6 +1263,19 @@ cl_int WINAPI wine_clEnqueueCopyBuffer(cl_command_queue command_queue, cl_mem sr
+@@ -1084,6 +1265,19 @@ cl_int WINAPI wine_clEnqueueCopyBuffer(cl_command_queue command_queue, cl_mem sr
      return ret;
  }
  
